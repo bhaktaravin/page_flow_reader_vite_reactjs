@@ -26,19 +26,7 @@ export function MangaReader({
     if (chapter) {
       console.log(`🔄 Chapter selected: ${chapter.number}, Pages: ${chapter.pages?.length || 0}`)
       setCurrentPageIndex(0)
-      setPagesLoaded(false)
-      
-      // Force load pages immediately if none exist
-      if (!chapter.pages || chapter.pages.length === 0) {
-        console.log(`⚠️ Chapter ${chapter.number} has no pages, generating fallback immediately`)
-        const fallbackPages = MangaService.generateMockPages(manga.id, parseInt(chapter.number), 20)
-        chapter.pages = fallbackPages
-        console.log(`✅ Generated ${fallbackPages.length} fallback pages for chapter ${chapter.number}`)
-        setPagesLoaded(true)
-      } else {
-        console.log(`📖 Chapter ${chapter.number} already has ${chapter.pages.length} pages`)
-        setPagesLoaded(true)
-      }
+      setPagesLoaded(true) // Pages should be loaded by parent component
       
       // Save reading progress
       const saveProgress = async () => {

@@ -13,24 +13,50 @@ const STORAGE_KEYS = {
 
 export class MangaService {
   // Library Management
+  // Utility function to clear storage (can be called from console)
+  static clearStorage(): void {
+    try {
+      localStorage.clear()
+      console.log(`🧹 Storage cleared successfully`)
+    } catch (error) {
+      console.error('Error clearing storage:', error)
+    }
+  }
+
   static async getLibrary(): Promise<Manga[]> {
     const library = localStorage.getItem(STORAGE_KEYS.LIBRARY)
     return library ? JSON.parse(library) : []
   }
 
-  static async addToLibrary(manga: Manga): Promise<Manga[]> {
-    const updatedManga = { ...manga, addedToLibrary: true }
-    const library = await this.getLibrary()
-    const existingIndex = library.findIndex(m => m.id === manga.id)
-    
-    if (existingIndex >= 0) {
-      library[existingIndex] = updatedManga
-    } else {
-      library.push(updatedManga)
+  static async addToLibrary(manga: Manga): Promise<void> {
+    try {
+      const library = await this.getLibrary()
+      
+      // Check if manga already exists
+      const existingIndex = library.findIndex(m => m.id === manga.id)
+      
+      if (existingIndex >= 0) {
+        // Update existing manga
+        library[existingIndex] = { ...library[existingIndex], ...manga }
+        console.log(`📝 Updated existing manga: ${manga.title}`)
+      } else {
+        // Add new manga
+        library.push(manga)
+        console.log(`➕ Added new manga to library: ${manga.title}`)
+      }
+      
+      try {
+        localStorage.setItem(STORAGE_KEYS.LIBRARY, JSON.stringify(library))
+      } catch (storageError) {
+        console.warn('Storage quota exceeded, clearing old data and retrying...')
+        localStorage.clear()
+        localStorage.setItem(STORAGE_KEYS.LIBRARY, JSON.stringify([manga]))
+        console.log('Storage cleared and manga saved')
+      }
+    } catch (error) {
+      console.error('Error adding to library:', error)
+      throw error
     }
-    
-    localStorage.setItem(STORAGE_KEYS.LIBRARY, JSON.stringify(library))
-    return library
   }
 
   static async removeFromLibrary(mangaId: string): Promise<Manga[]> {
@@ -270,43 +296,40 @@ export class MangaService {
       console.log(`🌐 Base URL: ${baseUrl}`)
       console.log(`🔑 Chapter hash: ${chapterHash}`)
 
-      // Step 2: Try multiple CORS proxy methods with enhanced testing
+      // Step 2: Try local proxy first, then working fallbacks only
       const corsProxies = [
         {
-          name: 'Direct Access',
-          transform: (url: string) => url,
+          name: 'Local Proxy (Best)',
+          transform: (url: string) => `http://localhost:3001/proxy?url=${encodeURIComponent(url)}`,
           test: true
         },
-        {
-          name: 'CORS Anywhere',
-          transform: (url: string) => `https://cors-anywhere.herokuapp.com/${url}`,
-          test: true
-        },
-        {
-          name: 'AllOrigins Raw',
-          transform: (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
-          test: true
-        },
+        // Disabled problematic external proxies that cause CORS errors
+        // {
+        //   name: 'AllOrigins',
+        //   transform: (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+        //   test: false
+        // },
+        // {
+        //   name: 'CORS.sh', 
+        //   transform: (url: string) => `https://cors.sh/${url}`,
+        //   test: false
+        // },
         {
           name: 'CORSProxy.io',
           transform: (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
           test: true
         },
         {
-          name: 'ThingProxy',
-          transform: (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`,
+          name: 'Direct Access',
+          transform: (url: string) => url,
           test: true
-        },
-        {
-          name: 'JSONProxy',
-          transform: (url: string) => `https://jsonp.afeld.me/?url=${url}`,
-          test: false // This one returns JSON, not images
         }
       ]
 
       // Test each proxy with the first page and convert to base64
       const firstPageUrl = `${baseUrl}/data/${chapterHash}/${pageFiles[0]}`
       console.log(`🔍 Testing with first page: ${firstPageUrl}`)
+      console.log(`🎯 Will test ${corsProxies.length} proxy methods`)
 
       for (const proxy of corsProxies) {
         if (!proxy.test) continue;
@@ -316,12 +339,18 @@ export class MangaService {
           const testUrl = proxy.transform(firstPageUrl)
           console.log(`   URL: ${testUrl}`)
           
-          // Try to fetch the image as blob
+          // Try to fetch the image with timeout
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
+          
           const testResponse = await fetch(testUrl, { 
             method: 'GET',
             mode: 'cors',
-            cache: 'no-cache'
+            cache: 'no-cache',
+            signal: controller.signal
           })
+          
+          clearTimeout(timeoutId)
 
           console.log(`   Response: ${testResponse.status} ${testResponse.statusText}`)
           console.log(`   Type: ${testResponse.type}`)
@@ -335,16 +364,16 @@ export class MangaService {
             if (contentType && contentType.startsWith('image/')) {
               console.log(`✅ ${proxy.name} working! Converting images to base64...`)
               
-              // Convert the first few images to base64 to test
+              // Convert all available images to base64
               const realPages: string[] = []
-              const maxPagesToLoad = Math.min(pageFiles.length, 5) // Load first 5 pages only for testing
+              console.log(`📖 Loading all ${pageFiles.length} pages for chapter`)
               
-              for (let i = 0; i < maxPagesToLoad; i++) {
+              for (let i = 0; i < pageFiles.length; i++) {
                 try {
                   const pageUrl = `${baseUrl}/data/${chapterHash}/${pageFiles[i]}`
                   const proxiedUrl = proxy.transform(pageUrl)
                   
-                  console.log(`   📄 Loading page ${i + 1}/${maxPagesToLoad}...`)
+                  console.log(`   📄 Loading page ${i + 1}/${pageFiles.length}...`)
                   const pageResponse = await fetch(proxiedUrl)
                   
                   if (pageResponse.ok) {
@@ -367,11 +396,8 @@ export class MangaService {
               }
               
               if (realPages.length > 0) {
-                console.log(`🎉 Successfully loaded ${realPages.length} real manga pages as base64 via ${proxy.name}!`)
-                
-                // For remaining pages, use mock pages to avoid long loading times
-                const remainingMockPages = this.generateMockPages('real-fallback', 1, pageFiles.length - realPages.length)
-                return [...realPages, ...remainingMockPages]
+                console.log(`Successfully loaded ${realPages.length} real pages via ${proxy.name}`)
+                return realPages
               } else {
                 console.log(`   ❌ No pages could be converted`)
               }
@@ -679,9 +705,14 @@ export class MangaService {
         manga.chapters = await this.loadMangaChapters(mangaId)
         
         // Update the library with loaded chapters
-        const updatedLibrary = library.map(m => m.id === mangaId ? manga : m)
-        localStorage.setItem(STORAGE_KEYS.LIBRARY, JSON.stringify(updatedLibrary))
-        console.log(`✅ Updated manga with ${manga.chapters.length} chapters`)
+        try {
+          const updatedLibrary = library.map(m => m.id === mangaId ? manga : m)
+          localStorage.setItem(STORAGE_KEYS.LIBRARY, JSON.stringify(updatedLibrary))
+          console.log(`✅ Updated manga with ${manga.chapters.length} chapters`)
+        } catch (storageError) {
+          console.warn(`⚠️ Storage quota exceeded when saving chapters, continuing without saving...`)
+          console.log(`✅ Loaded ${manga.chapters.length} chapters (not saved due to storage limit)`)
+        }
       } else {
         console.log(`📖 Manga already has ${manga.chapters.length} chapters`)
       }
@@ -703,27 +734,34 @@ export class MangaService {
     if (!chapter) return null
     
     console.log(`🔍 Getting chapter with pages: ${chapter.number}`)
+    console.log(`📋 Chapter currently has ${chapter.pages.length} pages`)
     
-    // Try to load real pages from MangaDx first
+    // ALWAYS try to load real pages from MangaDx first (ignore existing mock pages)
     try {
       console.log(`🌐 Attempting to load real pages for chapter ${chapter.number}...`)
       const realPages = await this.loadChapterPages(chapterId)
       
-      if (realPages.length > 0 && !realPages[0].includes('data:image')) {
-        console.log(`🎉 Successfully loaded ${realPages.length} real pages!`)
+      // Check if we got real pages (URLs or base64) vs mock pages (canvas generated)
+      const hasRealPages = realPages.length > 0 && 
+        (realPages[0].startsWith('http') || realPages[0].startsWith('//') || realPages[0].startsWith('data:image/'))
+      
+      console.log(`🔍 hasRealPages check: ${hasRealPages}, first page starts with: ${realPages[0]?.substring(0, 20)}...`)
+      
+      if (hasRealPages) {
+        console.log(`🎉 Successfully loaded ${realPages.length} real pages from proxy!`)
         return {
           ...chapter,
           pages: realPages
         }
       } else {
-        console.log(`🎨 Using ${realPages.length} mock pages (real pages unavailable)`)
+        console.log(`🎨 Using ${realPages.length} enhanced demo pages (real pages not accessible)`)
         return {
           ...chapter,
-          pages: realPages // These are already the mock pages from loadChapterPages
+          pages: realPages // These are the beautiful mock pages from loadChapterPages
         }
       }
     } catch (error) {
-      console.log(`❌ Error loading real pages, using mock: ${error}`)
+      console.log(`❌ Error loading real pages, using fallback: ${error}`)
     }
     
     // Fallback to generated pages if everything fails

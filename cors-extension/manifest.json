@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "CORS Unblock for PageFlow Reader",
+  "version": "1.0",
+  "description": "Temporarily disable CORS for manga image loading",
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "*://uploads.mangadx.org/*"
+  ],
+  "host_permissions": [
+    "*://uploads.mangadx.org/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

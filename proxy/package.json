@@ -1,0 +1,15 @@
+{
+  "name": "pageflow-proxy",
+  "version": "1.0.0",
+  "description": "CORS proxy for PageFlow Reader manga images",
+  "main": "proxy-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node proxy-server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "node-fetch": "^3.3.2"
+  }
+}

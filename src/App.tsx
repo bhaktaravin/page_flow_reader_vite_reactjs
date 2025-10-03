@@ -36,13 +36,17 @@ function App() {
         
         const updatedManga = { ...manga, chapters }
         setSelectedManga(updatedManga)
-        setSelectedChapter(chapters[0] || null)
+        if (chapters[0]) {
+          await handleChapterSelect(chapters[0], updatedManga)
+        }
       } catch (error) {
         console.error('Error loading manga chapters:', error)
         setSelectedChapter(null)
       }
     } else {
-      setSelectedChapter(manga.chapters[0] || null)
+      if (manga.chapters[0]) {
+        await handleChapterSelect(manga.chapters[0], manga)
+      }
     }
     
     setCurrentView('reader')
@@ -58,8 +62,26 @@ function App() {
     }
   }
 
-  const handleChapterSelect = (chapter: Chapter) => {
+  const handleChapterSelect = async (chapter: Chapter, manga?: Manga) => {
     setSelectedChapter(chapter)
+    
+    const currentManga = manga || selectedManga
+    if (!currentManga) {
+      return
+    }
+    
+    // Load real pages if not already loaded
+    if (!chapter.pages || chapter.pages.length === 0 || chapter.pages[0].startsWith('data:image/png;base64,iVBOR')) {
+      try {
+        const chapterWithPages = await MangaService.getChapterWithPages(currentManga.id, chapter.id)
+        if (chapterWithPages && chapterWithPages.pages.length > 0) {
+          chapter.pages = chapterWithPages.pages
+          setSelectedChapter({...chapter})
+        }
+      } catch (error) {
+        console.error('Error loading chapter pages:', error)
+      }
+    }
   }
 
   const handleDownloadChapter = async (manga: Manga, chapter: Chapter) => {
