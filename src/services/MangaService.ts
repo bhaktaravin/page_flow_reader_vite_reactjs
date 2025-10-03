@@ -281,7 +281,12 @@ export class MangaService {
       }
 
       const serverData = await serverResponse.json()
-      console.log('📡 Server data received:', serverData)
+      console.log(`📡 Server data received for chapter ${chapterId}:`, {
+        baseUrl: serverData.baseUrl,
+        chapterHash: serverData.chapter?.hash,
+        pageCount: serverData.chapter?.data?.length || 0,
+        firstPage: serverData.chapter?.data?.[0]
+      })
       
       if (!serverData.chapter || !serverData.chapter.data) {
         console.log('⚠️ No chapter data found')
@@ -367,13 +372,16 @@ export class MangaService {
               // Convert all available images to base64
               const realPages: string[] = []
               console.log(`📖 Loading all ${pageFiles.length} pages for chapter`)
+              console.log('📊 Progress: 0% - Starting page loading...')
               
               for (let i = 0; i < pageFiles.length; i++) {
                 try {
                   const pageUrl = `${baseUrl}/data/${chapterHash}/${pageFiles[i]}`
                   const proxiedUrl = proxy.transform(pageUrl)
                   
-                  console.log(`   📄 Loading page ${i + 1}/${pageFiles.length}...`)
+                  // Progress tracking
+                  const progress = Math.round(((i + 1) / pageFiles.length) * 100)
+                  console.log(`   📄 Loading page ${i + 1}/${pageFiles.length} (${progress}%)...`)
                   const pageResponse = await fetch(proxiedUrl)
                   
                   if (pageResponse.ok) {
@@ -384,7 +392,12 @@ export class MangaService {
                       reader.readAsDataURL(blob)
                     })
                     realPages.push(base64)
-                    console.log(`   ✅ Page ${i + 1} converted to base64`)
+                    console.log(`   ✅ Page ${i + 1} converted to base64 (${progress}% complete)`)
+                    
+                    // Progress milestone updates
+                    if ((i + 1) % 5 === 0 || progress % 25 === 0) {
+                      console.log(`🚀 Progress Update: ${realPages.length}/${pageFiles.length} pages loaded (${progress}%)`)
+                    }
                   } else {
                     console.log(`   ❌ Failed to load page ${i + 1}: ${pageResponse.status}`)
                     break
@@ -396,6 +409,8 @@ export class MangaService {
               }
               
               if (realPages.length > 0) {
+                const successRate = Math.round((realPages.length / pageFiles.length) * 100)
+                console.log(`🎉 Loading Complete! Successfully loaded ${realPages.length}/${pageFiles.length} pages (${successRate}% success rate)`)
                 console.log(`Successfully loaded ${realPages.length} real pages via ${proxy.name}`)
                 return realPages
               } else {

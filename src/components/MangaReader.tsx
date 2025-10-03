@@ -28,6 +28,9 @@ export function MangaReader({
       setCurrentPageIndex(0)
       setPagesLoaded(true) // Pages should be loaded by parent component
       
+      // Scroll to top when starting a new chapter
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      
       // Save reading progress
       const saveProgress = async () => {
         try {
@@ -69,12 +72,16 @@ export function MangaReader({
   const handleNextPage = () => {
     if (chapter && chapter.pages && currentPageIndex < chapter.pages.length - 1) {
       setCurrentPageIndex(prev => prev + 1)
+      // Scroll to top of page for better reading experience
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
   const handlePrevPage = () => {
     if (currentPageIndex > 0) {
       setCurrentPageIndex(prev => prev - 1)
+      // Scroll to top of page for better reading experience
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
 
@@ -113,7 +120,10 @@ export function MangaReader({
         </div>
 
         <div>
-          <h2 style={{ marginBottom: '1rem' }}>Chapters ({manga.chapters.length})</h2>
+          <h2 style={{ marginBottom: '0.5rem' }}>Select a Chapter to Read ({manga.chapters.length} available)</h2>
+          <p style={{ margin: '0 0 1.5rem 0', opacity: 0.7, fontSize: '0.9rem' }}>
+            📖 Choose any chapter below to start reading
+          </p>
           {manga.chapters.length === 0 && (
             <div style={{ 
               textAlign: 'center', 
