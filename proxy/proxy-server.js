@@ -1,9 +1,12 @@
 import express from 'express';
+import helmet from 'helmet';
 import cors from 'cors';
 import fetch from 'node-fetch';
 
 const app = express();
 const PORT = 3001;
+
+app.use(helmet());
 
 // Enable CORS for all routes
 app.use(cors());
